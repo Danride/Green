@@ -17,10 +17,10 @@ function treeModel(stump=false){
   return g;
 }
 function roadModel(){
-  const g=new THREE.Group();const slab=new THREE.Mesh(new THREE.BoxGeometry(.96,.05,.96),mat('#aba088'));
+  const g=new THREE.Group();const slab=new THREE.Mesh(new THREE.BoxGeometry(.96,.05,.96),mat('#202126'));
   slab.position.y=.03;g.add(slab);
   for(let k=0;k<4;k++){
-    const stone=new THREE.Mesh(new THREE.BoxGeometry(.20,.015,.13),mat(k%2?'#c7b9a0':'#94896e'));
+    const stone=new THREE.Mesh(new THREE.BoxGeometry(.20,.015,.13),mat(k%2?'#303136':'#3c3d42'));
     stone.position.set((k%2?1:-1)*.20,.063,(k<2?-.24:.24));g.add(stone);
   }return g;
 }
