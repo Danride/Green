@@ -24,6 +24,7 @@ function zoomBy(factor){cam.zoom*=factor;clampCamera();applyCamera();}
 function homeCamera(){cam.target.set(0,0,0);cam.yaw=.73;cam.pitch=.86;cam.zoom=1.06;applyCamera();}
 function fit(){const w=innerWidth,h=innerHeight,a=w/Math.max(h,1),v=12.0;
   camera.left=-v*a;camera.right=v*a;camera.top=v;camera.bottom=-v;
+  renderer.setPixelRatio(Math.min(1,window.devicePixelRatio||1,1800/Math.max(1,w),1100/Math.max(1,h)));
   renderer.setSize(w,h);applyCamera();}
 window.addEventListener('resize',fit);fit();
 $('camLeft').onclick=()=>orbit(-Math.PI/.008/4,0);

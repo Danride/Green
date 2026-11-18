@@ -18,11 +18,12 @@ function adjacentTo(b){
 function nearestEmpty(i,j){if(accessible(i,j))return {i,j};for(let r=1;r<N;r++)for(let dz=-r;dz<=r;dz++)for(let dx=-r;dx<=r;dx++)if(Math.abs(dx)+Math.abs(dz)===r&&accessible(i+dx,j+dz))return {i:i+dx,j:j+dz};return {i:0,j:0};}
 function cloneAndShade(m){m.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});return m;}
 function newModel(b){
+  if(b.type==='road'){b.model=null;markRoadsDirty();return;}
   let model;
   if(b.type==='house')model=(templates.house||houseFallback()).clone(true);
   else if(b.type==='sawmill')model=(templates.sawmill||sawmillFallback()).clone(true);
   else if(b.type==='tree')model=treeModel(b.logs===0);
-  else model=roadModel();
+  else throw new Error('Unknown building type: '+b.type);
   // Global 180-degree fix for all buildings; additional R rotations remain relative.
   if(b.type==='house'||b.type==='sawmill')model.rotation.y=Math.PI+(b.rot||0)*Math.PI/2;
   const p=tileCenter(b);model.position.set(p.x,0,p.z);
@@ -37,7 +38,7 @@ function disposeBuildingModel(b){
   scene.remove(b.model);
   // Procedural trees and roads get fresh geometries every time. Dispose them.
   // Imported GLTF geometry is shared between clones and must not be disposed here.
-  if(b.type==='tree'||b.type==='road')b.model.traverse(o=>{
+  if(b.type==='tree')b.model.traverse(o=>{
     if(!o.isMesh)return;
     o.geometry?.dispose();
     if(b.type==='road'){
@@ -65,6 +66,7 @@ function removeBuilding(b,{refund=true}={}){
   disposeBuildingModel(b);if(b.mixer)b.mixer.stopAllAction();
   for(const p of cellsFor(b.type,b.i,b.j))byCell.delete(tileKey(p.i,p.j));
   buildings.delete(b.id);
+  if(b.type==='road')markRoadsDirty();
   if(refund)wood+=Math.floor(costs[b.type]/2);
   // Reassign workers whose goal or carrying job was made invalid.
   for(const w of workers){

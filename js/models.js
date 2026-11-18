@@ -16,13 +16,24 @@ function treeModel(stump=false){
   }
   return g;
 }
-function roadModel(){
-  const g=new THREE.Group();const slab=new THREE.Mesh(new THREE.BoxGeometry(.96,.05,.96),mat('#202126'));
-  slab.position.y=.03;g.add(slab);
-  for(let k=0;k<4;k++){
-    const stone=new THREE.Mesh(new THREE.BoxGeometry(.20,.015,.13),mat(k%2?'#303136':'#3c3d42'));
-    stone.position.set((k%2?1:-1)*.20,.063,(k<2?-.24:.24));g.add(stone);
-  }return g;
+// Render all roads as one instanced mesh instead of five meshes per tile.
+const roadGeometry=new THREE.BoxGeometry(.97,.045,.97);
+const roadMaterial=new THREE.MeshLambertMaterial({color:'#25272a'});
+const roadLayer=new THREE.InstancedMesh(roadGeometry,roadMaterial,N*N);
+roadLayer.count=0;roadLayer.frustumCulled=false;scene.add(roadLayer);
+const roadInstance=new THREE.Object3D();
+let roadsDirty=true,roadVersion=0;
+function markRoadsDirty(){roadsDirty=true;roadVersion++;}
+function updateRoadInstances(){
+  if(!roadsDirty)return;
+  roadsDirty=false;let count=0;
+  for(const b of buildings.values())if(b.type==='road'){
+    const p=coords(b.i,b.j);
+    roadInstance.position.set(p.x,.028,p.z);
+    roadInstance.rotation.set(0,0,0);roadInstance.scale.set(1,1,1);
+    roadInstance.updateMatrix();roadLayer.setMatrixAt(count++,roadInstance.matrix);
+  }
+  roadLayer.count=count;roadLayer.instanceMatrix.needsUpdate=true;
 }
 function houseFallback(){
   const g=new THREE.Group();

@@ -1,121 +1,135 @@
-// Traffic on road tiles. Cars are intentionally much smaller than one tile:
-// a 2×2 arrangement fits inside a single road cell.
-const traffic={template:null,clip:null,cars:[],roadStamp:'',countdown:0};
-const CAR_SIZE=.34;
-const CAR_LIMIT=18;
-const CAR_SPEED=.55;
+// Road traffic. Exported Blockbench car headlights face local -Z.
+const CAR_SIZE=.68; // 2x previous .34
+const CAR_LIMIT=12;
+const CAR_SPEED=.62;
 const ROAD_DIRECTIONS=[[0,1],[1,0],[0,-1],[-1,0]];
-const roadTile=(i,j)=>getAt(i,j)?.type==='road';
+const traffic={template:null,clip:null,cars:[],lastRoadVersion:-1};
+const roadTile=(i,j)=>within(i,j)&&getAt(i,j)?.type==='road';
+const carBody=new THREE.MeshLambertMaterial({color:'#973a37'});
+const carGlass=new THREE.MeshLambertMaterial({color:'#77978a'});
+const carWheel=new THREE.MeshLambertMaterial({color:'#2e3031'});
+const carFallbackGeometry={body:new THREE.BoxGeometry(.40,.14,.60),roof:new THREE.BoxGeometry(.31,.16,.33),wheel:new THREE.BoxGeometry(.07,.12,.14)};
 function carFallback(){
-  const car=new THREE.Group();
-  const body=new THREE.Mesh(new THREE.BoxGeometry(.24,.095,.36),new THREE.MeshLambertMaterial({color:0x202328}));
-  body.position.y=.14;car.add(body);
-  const top=new THREE.Mesh(new THREE.BoxGeometry(.19,.09,.19),new THREE.MeshLambertMaterial({color:0x383f47}));
-  top.position.set(0,.22,-.03);car.add(top);
-  for(const x of [-.13,.13])for(const z of [-.11,.11]){
-    const wheel=new THREE.Mesh(new THREE.BoxGeometry(.045,.09,.095),new THREE.MeshLambertMaterial({color:0x0b0b0e}));
-    wheel.position.set(x,.095,z);car.add(wheel);
+  const g=new THREE.Group();
+  const body=new THREE.Mesh(carFallbackGeometry.body,carBody);body.position.y=.15;g.add(body);
+  const roof=new THREE.Mesh(carFallbackGeometry.roof,carGlass);roof.position.set(0,.29,.02);g.add(roof);
+  for(const x of [-.20,.20])for(const z of [-.21,.21]){
+    const wheel=new THREE.Mesh(carFallbackGeometry.wheel,carWheel);wheel.position.set(x,.085,z);g.add(wheel);
   }
-  return car;
-}
-function carMesh(){
-  const root=(traffic.template||carFallback()).clone(true);
-  root.traverse(obj=>{if(obj.isMesh){obj.castShadow=true;obj.receiveShadow=true;}});
-  return root;
+  return g;
 }
 function roadNeighbors(i,j){
-  return ROAD_DIRECTIONS.map(([di,dj])=>({i:i+di,j:j+dj}))
-    .filter(p=>within(p.i,p.j)&&roadTile(p.i,p.j));
+  const result=[];
+  for(const [dx,dz] of ROAD_DIRECTIONS){
+    const a=i+dx,b=j+dz;if(roadTile(a,b))result.push({i:a,j:b});
+  }
+  return result;
 }
-function collectRoadNetworks(){
-  const seen=new Set(),networks=[];
-  for(const road of allBuildings('road')){
-    const first={i:road.i,j:road.j},key=tileKey(first.i,first.j);
-    if(seen.has(key))continue;
-    const stack=[first],network=[];seen.add(key);
-    while(stack.length){
-      const p=stack.pop();network.push(p);
-      for(const next of roadNeighbors(p.i,p.j)){
-        const k=tileKey(next.i,next.j);
-        if(!seen.has(k)){seen.add(k);stack.push(next);}
+function roadNetworks(){
+  const seen=new Set(),groups=[];
+  for(const b of buildings.values()){
+    if(b.type!=='road')continue;
+    const start=tileKey(b.i,b.j);if(seen.has(start))continue;
+    seen.add(start);const open=[{i:b.i,j:b.j}],network=[];
+    for(let k=0;k<open.length;k++){
+      const p=open[k];network.push(p);
+      for(const n of roadNeighbors(p.i,p.j)){
+        const key=tileKey(n.i,n.j);
+        if(!seen.has(key)){seen.add(key);open.push(n);}
       }
     }
-    if(network.length>1)networks.push(network);
+    if(network.length>=2)groups.push(network);
   }
-  return networks;
+  return groups;
 }
-function disposeCars(){
-  for(const c of traffic.cars){
-    c.mixer?.stopAllAction();
-    scene.remove(c.model);
-    if(!traffic.template)c.model.traverse(o=>{if(o.isMesh){o.geometry.dispose();o.material.dispose();}});
-  }
-  traffic.cars.length=0;
+function releaseCar(c){
+  c.mixer?.stopAllAction();
+  scene.remove(c.model);
+  // Imported assets share geometry/materials; do not dispose them.
 }
-function spawnCar(network,slot){
-  const tile=network[Math.floor(Math.random()*network.length)];
-  const neighbors=roadNeighbors(tile.i,tile.j);
-  if(!neighbors.length)return;
-  const model=carMesh(),lane=(slot%2===0?-.16:.16);
-  const p=coords(tile.i,tile.j);
-  model.position.set(p.x+lane,0,p.z+lane);
-  scene.add(model);
-  const c={model,i:tile.i,j:tile.j,previous:null,target:null,lane,slot:slot%4,speed:CAR_SPEED*(.83+Math.random()*.3),mixer:null};
+function clearCars(){for(const c of traffic.cars)releaseCar(c);traffic.cars.length=0;}
+function makeCarModel(){
+  const model=(traffic.template||carFallback()).clone(true);
+  model.traverse(obj=>{if(obj.isMesh){obj.castShadow=false;obj.receiveShadow=false;}});
+  return model;
+}
+function chooseNextRoad(c){
+  let options=roadNeighbors(c.i,c.j);
+  if(!options.length){c.target=null;return;}
+  if(c.previous){const ahead=options.filter(p=>p.i!==c.previous.i||p.j!==c.previous.j);if(ahead.length)options=ahead;}
+  // Avoid another vehicle's current/destination tile.
+  const free=options.filter(p=>!traffic.cars.some(other=>other!==c&&
+    ((other.i===p.i&&other.j===p.j)||(other.target?.i===p.i&&other.target?.j===p.j))));
+  if(free.length)options=free;
+  else {c.target=null;c.pause=.35;return;}
+  c.target=options[Math.floor(Math.random()*options.length)];
+}
+function makeCar(p){
+  const model=makeCarModel(),at=coords(p.i,p.j);
+  model.position.set(at.x,.065,at.z);scene.add(model);
+  const c={model,i:p.i,j:p.j,target:null,previous:null,pause:0,speed:CAR_SPEED*(.85+Math.random()*.3),mixer:null};
+  traffic.cars.push(c);
   if(traffic.template&&traffic.clip){
     c.mixer=new THREE.AnimationMixer(model);c.mixer.clipAction(traffic.clip).play();
   }
-  traffic.cars.push(c);
-  pickCarDestination(c);
+  chooseNextRoad(c);
+  return c;
 }
-function pickCarDestination(c){
-  const neighbors=roadNeighbors(c.i,c.j);
-  if(!neighbors.length){c.target=null;return;}
-  let candidates=neighbors.filter(p=>!c.previous||p.i!==c.previous.i||p.j!==c.previous.j);
-  if(!candidates.length)candidates=neighbors;
-  // Four quarter-tile slots mean no more than four vehicles start on one tile.
-  const p=candidates[Math.floor(Math.random()*candidates.length)];
-  c.target=p;
+function syncTraffic(){
+  const groups=roadNetworks();
+  const valid=new Set(groups.flat().map(p=>tileKey(p.i,p.j)));
+  // Existing cars survive road edits while their tile is still connected.
+  for(let i=traffic.cars.length-1;i>=0;i--){
+    const c=traffic.cars[i];
+    if(!valid.has(tileKey(c.i,c.j))){releaseCar(c);traffic.cars.splice(i,1);}
+    else if(c.target&&!roadTile(c.target.i,c.target.j))c.target=null;
+  }
+  // With 2x larger cars 4 non-overlapping vehicles no longer fit within one tile.
+  const desired=Math.min(CAR_LIMIT,groups.reduce((sum,g)=>sum+Math.floor(g.length/4),0));
+  if(traffic.cars.length>desired){
+    for(let n=traffic.cars.length-1;n>=desired;n--){releaseCar(traffic.cars[n]);traffic.cars.pop();}
+  }
+  const occupied=new Set(traffic.cars.map(c=>tileKey(c.i,c.j)));
+  const roads=groups.flat().filter(p=>!occupied.has(tileKey(p.i,p.j)));
+  while(traffic.cars.length<desired&&roads.length){
+    const index=Math.floor(Math.random()*roads.length),p=roads.splice(index,1)[0];
+    makeCar(p);
+  }
+  traffic.lastRoadVersion=roadVersion;
 }
-function rebuildTraffic(){
-  const networks=collectRoadNetworks();
-  disposeCars();
-  let slot=0;
-  for(const net of networks){
-    let amount=Math.max(1,Math.floor(net.length/3));
-    amount=Math.min(amount,CAR_LIMIT-slot,net.length*4);
-    for(let n=0;n<amount;n++)spawnCar(net,slot++);
-    if(slot>=CAR_LIMIT)break;
+function refreshCarModels(){
+  for(const c of traffic.cars){
+    const pos=c.model.position.clone(),rot=c.model.rotation.y;
+    releaseCar(c);
+    c.model=makeCarModel();c.model.position.copy(pos);c.model.rotation.y=rot;scene.add(c.model);c.mixer=null;
+    if(traffic.template&&traffic.clip){c.mixer=new THREE.AnimationMixer(c.model);c.mixer.clipAction(traffic.clip).play();}
   }
 }
 function updateCars(dt){
-  traffic.countdown-=dt;
-  if(traffic.countdown<=0){
-    traffic.countdown=1.4;
-    const roads=allBuildings('road').map(b=>tileKey(b.i,b.j)).sort().join(';');
-    if(traffic.roadStamp!==roads){traffic.roadStamp=roads;rebuildTraffic();}
-  }
+  if(traffic.lastRoadVersion!==roadVersion)syncTraffic();
   for(const c of traffic.cars){
-    if(c.mixer)c.mixer.update(dt);
-    if(!roadTile(c.i,c.j)||!c.target||!roadTile(c.target.i,c.target.j)){
-      c.target=null;continue;
+    c.mixer?.update(dt);
+    if(!roadTile(c.i,c.j))continue;
+    if(!c.target||!roadTile(c.target.i,c.target.j)){
+      c.pause-=dt;
+      if(c.pause<=0){chooseNextRoad(c);c.pause=.18;}
+      continue;
     }
-    const p=coords(c.target.i,c.target.j);
-    // Each lane is offset from the center so two cars can pass each other.
+    const dest=coords(c.target.i,c.target.j),pos=c.model.position;
     const dx=c.target.i-c.i,dz=c.target.j-c.j;
-    const lateralX=-dz*c.lane,lateralZ=dx*c.lane;
-    const tx=p.x+lateralX,tz=p.z+lateralZ;
-    const deltaX=tx-c.model.position.x,deltaZ=tz-c.model.position.z;
+    const x=dest.x,z=dest.z,deltaX=x-pos.x,deltaZ=z-pos.z;
     const dist=Math.hypot(deltaX,deltaZ);
-    if(dist<.035){
-      c.model.position.set(tx,0,tz);
+    // Headlights are at the model's local -Z end, not +Z.
+    const face=Math.atan2(-dx,-dz);
+    const turn=Math.atan2(Math.sin(face-c.model.rotation.y),Math.cos(face-c.model.rotation.y));
+    c.model.rotation.y+=turn*Math.min(1,dt*12);
+    if(dist<=.035){
+      pos.set(x,.065,z);
       c.previous={i:c.i,j:c.j};c.i=c.target.i;c.j=c.target.j;
-      pickCarDestination(c);continue;
+      c.target=null;c.pause=.1;
+    }else{
+      const step=Math.min(dist,c.speed*dt);
+      pos.x+=deltaX/dist*step;pos.z+=deltaZ/dist*step;
     }
-    const heading=Math.atan2(deltaX,deltaZ); // GLTF local +Z as car's forward
-    const turn=Math.atan2(Math.sin(heading-c.model.rotation.y),Math.cos(heading-c.model.rotation.y));
-    c.model.rotation.y+=turn*Math.min(1,dt*9);
-    const step=Math.min(dist,c.speed*dt);
-    c.model.position.x+=deltaX/dist*step;
-    c.model.position.z+=deltaZ/dist*step;
   }
 }

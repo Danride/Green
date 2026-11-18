@@ -2,21 +2,21 @@
 const $=id=>document.getElementById(id);
 const scene=new THREE.Scene();
 scene.background=new THREE.Color('#b6c6ad');
-scene.fog=new THREE.Fog('#b6c6ad',38,76);
+// Fog removed so buildings stay visible at all camera angles.
 const camera=new THREE.OrthographicCamera(-12,12,12,-12,0.1,160);
-const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
-renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.6));
-renderer.shadowMap.enabled=true;
+const renderer=new THREE.WebGLRenderer({antialias:false,alpha:false,powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,1));
+renderer.shadowMap.enabled=false; // Performance: no expensive shadows.
 renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 renderer.outputColorSpace=THREE.SRGBColorSpace;
-renderer.toneMapping=THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure=1.25;
+renderer.toneMapping=THREE.NoToneMapping; // Standard sRGB
+renderer.toneMappingExposure=1;
 $('game').appendChild(renderer.domElement);
-window.__gameReady=true;
-scene.add(new THREE.HemisphereLight('#fff9df','#708e70',2.0));
-const sunlight=new THREE.DirectionalLight('#fff1d6',2.55);
+// Readiness is set in startup.js when systems are initialized.
+scene.add(new THREE.HemisphereLight('#ffffff','#8a9c87',1.35));
+const sunlight=new THREE.DirectionalLight('#ffffff',1.75);
 sunlight.position.set(-11,22,15);
-sunlight.castShadow=true;
+sunlight.castShadow=false;
 sunlight.shadow.mapSize.set(1024,1024);
 Object.assign(sunlight.shadow.camera,{left:-28,right:28,top:28,bottom:-28,near:.5,far:80});
 sunlight.shadow.bias=-0.00035;

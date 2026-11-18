@@ -6,6 +6,11 @@ import { GLTFLoader as ModelLoader } from 'three/addons/loaders/GLTFLoader.js';
 globalThis.THREE = ThreeLibrary;
 globalThis.GLTFLoader = ModelLoader;
 
+window.addEventListener('error', event => {
+  if(!event.message || !event.filename?.includes('/js/'))return;
+  const banner=document.getElementById('err');
+  if(banner){banner.textContent='Ошибка игры: '+event.message;banner.style.display='block';}
+});
 const scripts = [
   'scene', 'models', 'buildings', 'pathfinding', 'residents',
   'ui', 'camera', 'input', 'save', 'cars', 'startup'
