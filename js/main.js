@@ -8,7 +8,7 @@ globalThis.GLTFLoader = ModelLoader;
 
 const scripts = [
   'scene', 'models', 'buildings', 'pathfinding', 'residents',
-  'ui', 'camera', 'input', 'save', 'startup'
+  'ui', 'camera', 'input', 'save', 'cars', 'startup'
 ];
 
 try {
