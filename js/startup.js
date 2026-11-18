@@ -26,13 +26,20 @@ loadModel('./assets/models/resident.gltf',gltf=>{
   personClip=gltf.animations[0]||null;
   replaceWorkerModels();
 });
+loadModel('./assets/models/car.gltf',gltf=>{
+  traffic.template=normalizedTemplate(gltf,CAR_SIZE,.34);
+  traffic.clip=gltf.animations[0]||null;
+  traffic.roadStamp='';
+  traffic.countdown=0;
+  rebuildTraffic();
+});
 if(!restore())startWorld();
 refresh();
 let previous=performance.now(),uiTimer=0,saveTimer=0;
 function frame(t){
   requestAnimationFrame(frame);
   const dt=Math.min(.08,Math.max(0,(t-previous)/1000));previous=t;
-  updateWorkers(dt);updateTrees(dt);
+  updateWorkers(dt);updateTrees(dt);updateCars(dt);
   for(const b of buildings.values())if(b.mixer)b.mixer.update(dt);
   gold+=dt*allBuildings('house').length;
   uiTimer+=dt;saveTimer+=dt;
