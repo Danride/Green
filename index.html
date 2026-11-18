@@ -1,16 +1,19 @@
-<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#111a12"><title>Зелёный удел — Лесное поселение v3.2</title>
+<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#111a12"><title>Зелёный удел — Лесное поселение v4.0</title>
 <link rel="stylesheet" href="css/style.css">
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.166.1/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.166.1/examples/jsm/"}}</script></head><body>
 <div id="game"></div><div id="overlay"><div id="flyLayer"></div>
-  <div id="hud"><div class="brand"><b>ЗЕЛЁНЫЙ УДЕЛ <span>/ V3.2</span></b><small>ЛЕСНОЕ ПОСЕЛЕНИЕ · СТРАТЕГИЯ 2.5D</small></div>
+  <div id="hud"><div class="brand"><b>ЗЕЛЁНЫЙ УДЕЛ <span>/ V4.0</span></b><small>ЛЕСНОЕ ПОСЕЛЕНИЕ · СТРАТЕГИЯ 2.5D</small></div>
     <div class="rightInfo"><div class="stats">
-       <div class="stat"><small>🪵 Древесина</small><strong id="wood">125</strong><em id="woodDetail">Только доставка</em></div>
+       <div class="stat"><small>🪵 Древесина</small><strong id="wood">200</strong><em id="woodDetail">Только доставка</em></div>
+       <div class="stat"><small>🪨 Камень</small><strong id="stone">0</strong><em>Доставка в каменоломню</em></div>
        <div class="stat"><small>🪙 Монеты</small><strong id="gold">0</strong><em>Дома дают доход</em></div>
        <div class="stat"><small>🏠 Дома</small><strong id="houses">0</strong><em><span id="population">0</span> жителей</em></div>
     </div><div class="extraBtns"><button id="save">Сохранить</button><button id="reset">Новая игра</button><button id="helpBtn">?</button></div></div>
   </div>
-  <div class="side"><h3>🌲 ЛЕСНОЕ ХОЗЯЙСТВО</h3><p>Жители идут к деревьям, рубят их и несут брёвна на лесопилку. Древесина начисляется <b>только при доставке.</b></p>
+  <div class="side"><h3>🌲 ЛЕСНОЕ ПОСЕЛЕНИЕ</h3><p>Мир 128×128: сгенерированные леса и каменные залежи. Построек пока нет. Жители появятся после строительства домов. Они добывают древесину и камень и доставляют ресурсы на производство.</p>
    <div class="row"><span>Лесопилки</span><span class="value" id="mills">0</span></div>
+   <div class="row"><span>Каменоломни</span><span class="value" id="quarries">0</span></div>
+   <div class="row"><span>Доставлено камня</span><span class="value" id="stoneDeliveries">0</span></div>
    <div class="row"><span>Доставлено брёвен</span><span class="value" id="deliveries">0</span></div>
    <div class="activity" id="activity">Ожидание жителей…</div>
   </div>
@@ -24,18 +27,21 @@
   <div class="toolBar">
     <button class="tool active" data-tool="house"><span class="symbol">🏠</span><b>Дом</b><small>🪵 25 · 1×1</small></button>
     <button class="tool" data-tool="sawmill"><span class="symbol">🪚</span><b>Лесопилка</b><small>🪵 60 · 2×2</small></button>
+    <button class="tool" data-tool="quarry"><span class="symbol">⛏️</span><b>Каменоломня</b><small>🪵 70 · 2×2</small></button>
     <button class="tool" data-tool="tree"><span class="symbol">🌳</span><b>Дерево</b><small>🪵 6 · 1×1</small></button>
-    <button class="tool" data-tool="road"><span class="symbol">⬛</span><b>Дорога</b><small>🪵 3 · 1×1</small></button>
+    <button class="tool" data-tool="road"><span class="symbol">⬛</span><b>Дорога</b><small>🪵 3 🪨 1</small></button>
     <button class="tool" data-tool="erase"><span class="symbol">⌫</span><b>Снести</b><small>Возврат 50%</small></button>
     <button class="tool" data-tool="view"><span class="symbol">✋</span><b>Камера</b><small>Перемещать</small></button>
   </div><div class="foot">ПКМ — вращение · СКМ/Shift+ЛКМ — перемещение · Колесо — масштаб · R — повернуть постройку · Q/E — повернуть камеру</div>
   <div id="err">Не удалось загрузить Three.js. Проверь интернет: первая загрузка игры требует доступ к библиотеке через CDN.</div>
 </div>
 <div id="help"><div class="modal"><h2>Как играть</h2>
- <p><b>Древесина</b> не появляется сама. Сначала нужен дом (1–2 жителя), дерево и лесопилка. Житель идёт к дереву, рубит его около 3 секунд, несёт одно бревно на лесопилку и лишь после доставки пополняет запас на <b>8 древесины</b>. В каждом дереве 3 бревна; срубленное дерево возобновляется через 42 секунды.</p>
+ <p><b>Новый мир:</b> 128×128 клеток, случайное расположение деревьев и серых каменных залежей. В начале нет ни одного здания. Стартовый запас — 200 древесины и 0 камня. Вокруг центра есть пустая площадка.</p>
+ <p><b>Древесина:</b> построй дом и лесопилку. 1–2 жителя на дом рубят деревья и несут по одному бревну. При доставке на лесопилку получаешь <b>+8 дерева</b>. Дерево отрастает через 70 секунд.</p>
+ <p><b>Камень:</b> построй каменоломню за 70 древесины. Жители добывают серые камни и приносят их на каменоломню, получая <b>+5 камня</b> за доставку. Камень расходуется на дороги (3 дерева + 1 камень).</p>
  <p><b>Лесопилка занимает 2×2 клетки</b> — для постройки нужен полностью свободный участок. Нажатие «Снести» на любой из четырёх клеток удаляет её целиком. Дома и лесопилка развёрнуты на 180° относительно прошлой версии.</p>
  <p><b>Камера:</b> правая кнопка мыши — вращение; средняя кнопка или Shift + левая — перемещение; колесо — масштаб. Q/E — поворот, WASD — перемещение, R — повернуть будущую постройку. На телефоне выбери «Камера» для перемещения одним пальцем, или используй два пальца для перемещения и масштаба. Кнопки в правом углу работают на телефоне.</p>
- <p>Монеты начисляются домами, древесина — <b>только</b> после физической доставки. Поселение автоматически сохраняется, включая остаток древесины и деревья. Ранее сохранённые постройки переносятся по возможности.</p>
+ <p>Игра автоматически сохраняется в новом слоте v4; старые поселения v3 не загружаются поверх нового мира. «Новая игра» создаёт другой случайный мир и удаляет текущий прогресс. Монеты начисляются домами. Древесина и камень — только после доставки.</p>
  <button id="closeHelp">Понятно</button></div></div>
 
 

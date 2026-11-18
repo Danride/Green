@@ -1,26 +1,59 @@
 // Зелёный удел 3.1 — models.js
 function mat(color){return new THREE.MeshLambertMaterial({color});}
 const mats={wood:mat('#99673e'),leaf:mat('#346f45'),lightLeaf:mat('#518758'),stump:mat('#7b5437'),log:mat('#a87944'),cut:mat('#dab38c'),metal:mat('#b9c5c1')};
-function treeModel(stump=false){
-  const g=new THREE.Group();
-  const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.095,.15,.54,7),mats.wood);
-  trunk.position.y=.27;g.add(trunk);
-  if(stump){trunk.scale.y=.31;trunk.position.y=.084;
-    const cut=new THREE.Mesh(new THREE.CylinderGeometry(.096,.096,.013,7),mats.cut);
-    cut.position.y=.17;g.add(cut);
-  }else{
-    const lower=new THREE.Mesh(new THREE.ConeGeometry(.46,.72,7),mats.leaf);
-    lower.position.y=.78;g.add(lower);
-    const upper=new THREE.Mesh(new THREE.ConeGeometry(.35,.63,7),mats.lightLeaf);
-    upper.position.y=1.08;g.add(upper);
-  }
-  return g;
+// Trees and stone deposits use batched instances (five draw calls for the whole 128×128 world).
+const NATURE_CAP=N*N;
+function natureMesh(geometry,material){
+  const mesh=new THREE.InstancedMesh(geometry,material,NATURE_CAP);
+  mesh.count=0;mesh.frustumCulled=false;mesh.castShadow=false;mesh.receiveShadow=false;
+  scene.add(mesh);return mesh;
 }
-// Render all roads as one instanced mesh instead of five meshes per tile.
+const naturalMeshes={
+  trunks:natureMesh(new THREE.CylinderGeometry(.095,.15,.54,6),mats.wood),
+  leaves1:natureMesh(new THREE.ConeGeometry(.44,.73,6),mats.leaf),
+  leaves2:natureMesh(new THREE.ConeGeometry(.34,.59,6),mats.lightLeaf),
+  stumps:natureMesh(new THREE.CylinderGeometry(.12,.15,.19,6),mats.stump),
+  rocks:natureMesh(new THREE.DodecahedronGeometry(.40,0),mat('#92999f'))
+};
+const naturalObject=new THREE.Object3D();let natureDirty=true;
+function markNatureDirty(){natureDirty=true;}
+function updateNaturalInstances(){
+  if(!natureDirty)return;
+  natureDirty=false;
+  const count={trunks:0,leaves1:0,leaves2:0,stumps:0,rocks:0};
+  for(const b of buildings.values()){
+    if(b.type!=='tree'&&b.type!=='rock')continue;
+    const p=coords(b.i,b.j),v=b.variant??.5;
+    const scale=.84+v*.33;
+    const set=(name,x,y,z,sx,sy,sz)=>{
+      naturalObject.position.set(x,y,z);
+      naturalObject.rotation.set(0,v*6.283185307179586,0);
+      naturalObject.scale.set(sx,sy,sz);naturalObject.updateMatrix();
+      naturalMeshes[name].setMatrixAt(count[name]++,naturalObject.matrix);
+    };
+    if(b.type==='tree'){
+      if(b.logs>0){
+        set('trunks',p.x,.27,p.z,scale,scale,scale);
+        set('leaves1',p.x,.77*scale,p.z,scale,scale,scale);
+        set('leaves2',p.x,1.07*scale,p.z,scale,scale,scale);
+      }else set('stumps',p.x,.09,p.z,scale,scale,scale);
+    }else{
+      const factor=b.ore>0?(.75+v*.28):.18;
+      set('rocks',p.x,.17*factor,p.z,factor,factor*.80,factor*.96);
+    }
+  }
+  for(const [name,mesh] of Object.entries(naturalMeshes)){
+    mesh.count=count[name];mesh.instanceMatrix.needsUpdate=true;
+  }
+}
+// One GPU draw call for ALL roads, instead of five meshes per tile.
 const roadGeometry=new THREE.BoxGeometry(.97,.045,.97);
 const roadMaterial=new THREE.MeshLambertMaterial({color:'#25272a'});
 const roadLayer=new THREE.InstancedMesh(roadGeometry,roadMaterial,N*N);
-roadLayer.count=0;roadLayer.frustumCulled=false;scene.add(roadLayer);
+roadLayer.count=0;roadLayer.receiveShadow=false;
+// Conservative culling because instance matrices change while playing.
+roadLayer.frustumCulled=false;
+scene.add(roadLayer);
 const roadInstance=new THREE.Object3D();
 let roadsDirty=true,roadVersion=0;
 function markRoadsDirty(){roadsDirty=true;roadVersion++;}
@@ -43,6 +76,14 @@ function houseFallback(){
   roof.position.y=.78;roof.rotation.y=Math.PI/4;g.add(roof);
   const door=new THREE.Mesh(new THREE.BoxGeometry(.18,.3,.04),mat('#5d4634'));
   door.position.set(0,.15,-.37);g.add(door);return g;
+}
+function quarryFallback(){
+  const g=new THREE.Group();
+  const base=new THREE.Mesh(new THREE.BoxGeometry(1.52,.60,1.48),mat('#9b978f'));
+  base.position.y=.30;g.add(base);
+  const roof=new THREE.Mesh(new THREE.BoxGeometry(1.65,.15,1.55),mat('#5d6663'));
+  roof.position.y=.69;g.add(roof);
+  return g;
 }
 function sawmillFallback(){
   const g=new THREE.Group(),body=new THREE.Mesh(new THREE.BoxGeometry(1.42,.67,1.35),mat('#b78c65'));

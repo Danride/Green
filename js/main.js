@@ -11,9 +11,10 @@ window.addEventListener('error', event => {
   const banner=document.getElementById('err');
   if(banner){banner.textContent='Ошибка игры: '+event.message;banner.style.display='block';}
 });
+
 const scripts = [
   'scene', 'models', 'buildings', 'pathfinding', 'residents',
-  'ui', 'camera', 'input', 'save', 'cars', 'startup'
+  'ui', 'camera', 'input', 'save', 'world', 'cars', 'startup'
 ];
 
 try {
